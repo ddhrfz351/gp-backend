@@ -1,41 +1,23 @@
-const conn = require("../models/dbConnectoin");
+// chatBot.js
+const { NlpManager } = require('node-nlp');
 
-class ChatBotController {
-    static searchAnswer = (req, res) => {
-        const userQuestion = req.body.question;
-    
-        if (!userQuestion) {
-          return res.status(400).json({ error: 'السؤال مطلوب.' });
-        }
-    
-        // إجراء البحث عن الإجابة باستخدام السؤال
-        const query = 'SELECT answer FROM qa_table WHERE question LIKE ?';
-        const searchTerm = '%' + userQuestion + '%';
-    
-        conn.query(query, [searchTerm], (err, results) => {
-          if (err) {
-            console.error('خطأ في الاستعلام: ' + err.message);
-            return res.status(500).json({ error: 'حدث خطأ أثناء البحث عن الإجابة.' });
-          } else if (results.length === 0) {
-            return res.json({ message: "لا يمكنني الرد علي سؤالك  نوجه الي شؤون الطلاب" });
-          } else {
-            return res.json({ answer: results[0].answer });
-          }
-        });
-      }
-  static addQuestionAndAnswer=(req, res) =>{
-    const { question, answer } = req.body;
-    const query = 'INSERT INTO qa_table (question, answer) VALUES (?, ?)';
+const manager = new NlpManager({ languages: ['ar'] });
 
-    conn.query(query, [question, answer], (err, result) => {
-      if (err) {
-        console.error('خطأ في الإدراج: ' + err.message);
-        res.status(500).json({ error: 'حدث خطأ أثناء إضافة السؤال والجواب.' });
-      } else {
-        res.json({ message: 'تم إضافة السؤال والجواب بنجاح.' });
-      }
-    });
-  }
+manager.addDocument('ar', 'مرحبا', 'greetings.hello');
+manager.addDocument('ar', 'السلام عليكم', 'greetings.hello');
+manager.addDocument('ar', 'كيف حالك؟', 'greetings.howAreYou');
+manager.addDocument('ar', 'مااسمك', 'greetings.whatIsYourName');
+manager.addDocument('ar', 'كم عمرك؟', 'greetings.askAge'); // سؤال جديد حول العمر
+manager.addAnswer('ar', 'greetings.hello', 'مرحبا لك أيضا!');
+manager.addAnswer('ar', 'greetings.whatIsYourName', 'الدلوعه');
+manager.addAnswer('ar', 'greetings.howAreYou', 'أنا بخير، شكراً. كيف يمكنني مساعدتك؟');
+manager.addAnswer('ar', 'greetings.askAge', 'أنا مجرد برنامج حاسوب، ليس لدي عمر.');
+
+manager.train();
+
+async function getResponse(message) {
+  const response = await manager.process('ar', message);
+  return response.answer;
 }
 
-module.exports = ChatBotController ;
+module.exports = { getResponse };

@@ -1,15 +1,18 @@
-const chatController= require('../controllers/chatBot.controller');
-//  const validation = require("../middlewares/validation");
-
-const router = require("express").Router();
-//  /api/chatBot
+// routes/chat.js
+const express = require('express');
+const { getResponse } = require('../controllers/chatBot.controller');
 
 
-router.route('/')
-       .post(chatController.addQuestionAndAnswer)
-       .get(chatController.searchAnswer);
-   
-  
-      
+const router = express.Router();
 
-  module.exports = router;
+router.get('/', async (req, res) => {
+  const { message } = req.query;
+  if (!message) {
+    return res.status(400).json({ error: 'يرجى توفير رسالة للحصول على رد' });
+  }
+
+  const reply = await getResponse(message);
+  res.json({ reply });
+});
+
+module.exports = router;

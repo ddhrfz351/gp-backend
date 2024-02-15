@@ -4,12 +4,15 @@ const employeeController= require('../controllers/employee.controller');
 const router = require("express").Router();
 //  /api/employee
 
-router.route('/:id')
+router.route('/')
   .post(employeeController.acceptAdmissionRequest)
-
-
-
-
+router.route('/reject')
+  .post(employeeController.rejectAdmissionRequest)
+router.route('/')
+  .get( employeeController.getAllAdmissionRequests);
+  router.route('/block/:national_id')
+  .put(employeeController.blockStudent)
+  
 
 
 
