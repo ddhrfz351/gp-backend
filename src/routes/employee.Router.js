@@ -1,17 +1,18 @@
 const employeeController= require('../controllers/employee.controller');
  const validation = require("../middlewares/validation");
+ const Token = require('../middlewares/verifyToken');
  const employee = require('../validations/employee.validation');
 const router = require("express").Router();
 //  /api/employee
 
 router.route('/')
-  .post(employeeController.acceptAdmissionRequest)
+  .post(Token.verifyToken, Token.authorize([1,2]),employeeController.acceptAdmissionRequest)
 router.route('/reject')
-  .post(employeeController.rejectAdmissionRequest)
+  .post(Token.verifyToken, Token.authorize([1,2]),employeeController.rejectAdmissionRequest)
 router.route('/')
-  .get( employeeController.getAllAdmissionRequests);
+  .get(Token.verifyToken, Token.authorize([1,2]), employeeController.getAllAdmissionRequests);
   router.route('/block/:national_id')
-  .put(employeeController.blockStudent)
+  .put(Token.verifyToken, Token.authorize([1,2]),employeeController.blockStudent)
   
 
 

@@ -1,95 +1,50 @@
-const Joi = require('joi');
-class Student {
-  static insertAdmissionRequest = Joi.object({
-    
-    Student_type: Joi.string().min(3).valid('مستجد','قديم').trim().max(10).required(),
-    nationality: Joi.string().valid('وافد','مصرى').trim().required(),
-    national_id: Joi.when('nationality', {
-      is: 'مصرى',
-      then: Joi.string().length(14).required(),
-      otherwise: Joi.string().length(14)
-    }),  
-    name: Joi.string().min(3).max(100).required(),
-    password: Joi.string().min(6).max(100).required(),
-    date_of_birth: Joi.date().required(),
-    place_of_birth: Joi.string().trim().required(),
-    gender: Joi.string().valid('ذكر','انثي').trim().required(),
-    religion: Joi.string().valid('مسلم', 'مسيحي', 'يهودي').trim().required(),
-    residence_address: Joi.string().min(3).max(100).required(),
-    detailed_address: Joi.string().min(3).max(150).required(),
-    email: Joi.string().email().required(),
-    mobile_number: Joi.string().min(3).max(50).required(),
-    father_name: Joi.when('nationality', {
-      is: 'مصرى',
-      then: Joi.string().min(3).max(70).required(),
-      otherwise: Joi.string().min(3).max(70)
-    }),
-    father_national_id: Joi.when('nationality', {
-      is: 'مصرى',
-      then: Joi.string().length(14).required(),
-      otherwise: Joi.string().length(14)
-    }),
-    father_occupation: Joi.when('nationality', {
-      is: 'مصرى',
-      then: Joi.string().min(2).max(100).required(),
-      otherwise: Joi.string().min(2).max(100)
-    }),
-    father_phone_number: Joi.when('nationality', {
-      is: 'مصرى',
-      then: Joi.string().min(3).max(50).required(),
-      otherwise: Joi.string().min(3).max(50)
-    }),
-    guardian_name: Joi.when('nationality', {
-      is: 'مصرى',
-      then: Joi.string().min(3).max(100).required(),
-      otherwise: Joi.string().min(3).max(100)
-    }),
-    guardian_national_id: Joi.when('nationality', {
-      is: 'مصرى',
-      then: Joi.string().required(),
-      otherwise: Joi.string()
-    }),
-    guardian_phone_number: Joi.when('nationality', {
-      is: 'مصرى',
-      then: Joi.string().min(3).max(50).required(),
-      otherwise: Joi.string().min(3).max(50)
-    }),
-    parents_status: Joi.string().valid('متزوج', 'أعزب', 'مطلق').required(),
-    college: Joi.string().min(3).max(100).required(),
-    level: Joi.number().integer().min(1).max(5).required(),
-    previous_academic_year_gpa: Joi.when('Student_type', {
-      is: 'قديم',
-      then: Joi.number().min(0).max(4).required(),
-      otherwise: Joi.number().min(0).max(4)
-    }),
-    Housing_in_previous_years: Joi.when('Student_type', {
-      is: 'قديم',
-      then: Joi.string().min(3).max(100).required(),
-      otherwise: Joi.string().min(3).max(100)
-    }),
-    housing_type: Joi.string().min(3).max(50).valid('مميز', 'عادي').required(),
-    university_name: Joi.string().min(3).max(50).required(),
-    family_abroad: Joi.boolean().default(false),
-    special_needs:Joi.boolean().default(false),
-    Secondary_Division: Joi.string().min(3).max(50).required(),
-    Total_grades_high_school: Joi.number().min(1).required(),
-    Passport_number: Joi.when('nationality', {
-      is: 'وافد',
-      then: Joi.string().min(3).max(50).required(),
-      otherwise: Joi.string().min(3).max(50)
-    }),
-    Passport_issuing_authority: Joi.when('nationality', {
-      is: 'وافد',
-      then: Joi.string().min(3).max(50).required(),
-      otherwise: Joi.string().min(3).max(50)
-    }),
-  });
+const { body } = require('express-validator');
 
-
-// static getAppointmentsByUniversityName = Joi.object({
-//   universityName: Joi.string().min(3).max(100).required(),
-// })
-
+class StudentValidator {
+  static insertAdmissionRequest = [
+    body('nationality')
+    .trim()
+    .notEmpty().withMessage('يجب إدخال الجنسية')
+    .isIn(['وافد', 'مصرى', 'مصري']).withMessage('الجنسية غير صالحة')
+    .optional({ nullable: true, checkFalsy: true }) // Make the field optional
+    .default('مصري'), // Set the default value
+    body('national_id').if(body('nationality').equals('مصرى')).notEmpty().isLength({ min: 14, max: 14 }),
+    body('passport_number').if(body('nationality').equals('وافد')).notEmpty(),
+    body('name').notEmpty(),
+    body('high_school_department_from_abroad').optional(),
+    body('student_id').optional(),
+    body('password').optional(),
+    body('confirm_password').optional(),
+    body('date_of_birth').optional(),
+    body('place_of_birth').optional(),
+    body('phone').optional(),
+    body('gender').trim().notEmpty().isIn(['ذكر', 'انثي']),
+    body('religion').trim().notEmpty().isIn(['مسلم', 'مسيحي', 'يهودي']),
+    body('residence_address').trim().notEmpty().isLength({ min: 3, max: 100 }),
+    body('detailed_address').trim().notEmpty().isLength({ min: 3, max: 150 }),
+    body('email').trim().notEmpty().isEmail(),
+    body('mobile_number').trim().notEmpty().isLength({ min: 3, max: 50 }),
+    body('father_name').if(body('nationality').equals('مصرى')).notEmpty().isLength({ min: 3, max: 70 }),
+    body('father_national_id').if(body('nationality').equals('مصرى')).notEmpty().isLength({ min: 14, max: 14 }),
+    body('father_occupation').optional(),
+    body('father_phone_number').if(body('nationality').equals('مصرى')).optional().isLength({ min: 3, max: 50 }),
+    body('guardian_name').optional(),
+    body('guardian_national_id').if(body('nationality').equals('مصرى')).optional(),
+    body('guardian_relationship').optional(),
+    body('guardian_states').optional(),
+    body('guardian_phone_number').optional(),
+    body('parents_status').optional(),
+    body('college').trim().notEmpty().isLength({ min: 3, max: 100 }),
+    body('previous_academic_year_gpa').if(body('Student_type').equals('قديم')).notEmpty().isFloat({ min: 0, max: 4 }),
+    body('Housing_in_previous_years').if(body('Student_type').equals('قديم')).notEmpty().isLength({ min: 3, max: 100 }),
+    body('housing_type').trim().notEmpty().isIn(['مميز', 'عادي']),
+    body('university_name').trim().notEmpty().isLength({ min: 3, max: 50 }),
+    body('family_from_abroad').optional().isBoolean().default(false),
+    body('special_needs').optional().isBoolean().default(false),
+    body('Secondary_Division').if(body('Student_type').equals('مستجد')).notEmpty().isLength({ min: 3, max: 100 }),
+    body('Total_grades_high_school').optional(),
+    body('Passport_issuing_authority').if(body('nationality').equals('وافد')).notEmpty(),
+  ];
 }
 
-module.exports = Student;
+module.exports = StudentValidator; 

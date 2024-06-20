@@ -1,16 +1,23 @@
 const studentController = require("../controllers/student.controller");
 const validation = require("../middlewares/validation");
-const validateUser = require("../middlewares/validateUser");
-const student = require("../validations/student.validation");
+const Token = require('../middlewares/verifyToken'); 
+const StudentValidator = require("../validations/student.validation");
 const router = require("express").Router();
 
 //  /api/student
 router
-  .route("/")
+  .route("/new")
   .post(
-    validation(student.insertAdmissionRequest),
-    studentController.insertAdmissionRequest
+    validation(StudentValidator.insertAdmissionRequest),
+    studentController.insertNewAdmissionRequest
   );
+  router
+  .route("/old")
+  .post(
+    validation(StudentValidator.insertAdmissionRequest),
+    studentController.insertOldAdmissionRequest
+  );
+//تقديم طلب التحاق
 //تقديم طلب التحاق
 router
   .route("/guidelines")
@@ -22,8 +29,15 @@ router
 router
   .route("/GetAppointment")
   .get(studentController.getAppointmentsByUniversityName); //الاستعلام عن مواعيد التقديم لكل جامعه ب اسمها
-router.route("/edit").put(studentController.updateAdmissionRequestFields); 
+router.route("/edit")
+.put( Token.verifyToken, Token.authorize([0]),studentController.updateAdmissionRequestFields); 
 //تعديل البيانات
 router.route("/Absence")
-.get(studentController.getUserAbsences); 
+.get(Token.verifyToken, Token.authorize([0]),studentController.getUserAbsences); 
+router.route("/getAdmissionHousingFee")
+.get(studentController.getStudentAdmissionDetails); 
+router.route("/get/:national_id")
+.get(studentController.getUserByNationalId); 
+router.route("/getStudentData")
+.get(Token.verifyToken, Token.authorize([0]),studentController.getAdmissionRequestByNationalID); 
 module.exports = router;

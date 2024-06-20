@@ -2,314 +2,282 @@ const conn = require("../models/dbConnectoin");
 const fs = require("fs");
 const path = require("path");
 
-class Supervising_systemController{
+class Supervising_systemController {
+  static getMaleBuildings(req, res) {
+    const gender = "ذكر";
 
+    // استعلام لاختيار المباني بناءً على الجنس
+    const selectBuildingsQuery = `SELECT * FROM buildings WHERE gender = ?`;
 
-  
-static addCity = (req, res) => {
-  const name = req.body.name;
-  const universityName = req.body.university_name;
+    conn.query(selectBuildingsQuery, [gender], (err, results) => {
+      if (err) {
+        console.error("خطأ في استرجاع المباني:", err.stack);
+        return res.status(500).json({ error: "حدث خطأ أثناء استرجاع المباني" });
+      }
 
-  if (!name || !universityName) {
-      return res.status(400).json({ message: "يجب تقديم اسم المدينة واسم الجامعة." });
+      // إذا لم تكن هناك مباني، قم بإرجاع رسالة بالعثور على مبانٍ
+      if (results.length === 0) {
+        return res.status(404).json({ message: "لم يتم العثور على مبانٍ" });
+      }
+
+      // إرجاع المباني
+      res.status(200).json({ buildings: results });
+    });
   }
 
-  // دالة للبحث عن معرف الجامعة باستخدام اسم الجامعة
-  const getUniversityIdByName = (universityName, callback) => {
-      const query = 'SELECT id FROM universities WHERE name = ?';
-      conn.query(query, [universityName], (err, result) => {
-          if (err) {
-              console.error('خطأ في الاستعلام: ' + err.message);
-              return callback(err, null);
-          }
+  static getFemaleBuildings(req, res) {
+    const gender = "انثي";
 
-          if (result.length === 0) {
-              return callback(null, null); // لا يوجد جامعة تحمل هذا الاسم
-          }
+    // استعلام لاختيار المباني بناءً على الجنس
+    const selectBuildingsQuery = `SELECT * FROM buildings WHERE gender = ?`;
 
-          const universityId = result[0].id;
-          return callback(null, universityId);
+    conn.query(selectBuildingsQuery, [gender], (err, results) => {
+      if (err) {
+        console.error("خطأ في استرجاع المباني:", err.stack);
+        return res.status(500).json({ error: "حدث خطأ أثناء استرجاع المباني" });
+      }
+
+      // إذا لم تكن هناك مباني، قم بإرجاع رسالة بالعثور على مبانٍ
+      if (results.length === 0) {
+        return res.status(404).json({ message: "لم يتم العثور على مبانٍ" });
+      }
+
+      // إرجاع المباني
+      res.status(200).json({ buildings: results });
+    });
+  }
+
+  //================================================================================
+  static addBuilding = (req, res) => {
+    const { name, gender } = req.body;
+    const city_id = req.body.city_id || 1; // تعيين القيمة الافتراضية لـ city_id إلى 1 إذا لم يتم تقديم قيمة
+
+    // التحقق من عدم وجود مبنى بنفس الاسم
+    const checkBuildingQuery = "SELECT id FROM buildings WHERE name = ?";
+    conn.query(checkBuildingQuery, [name], (err, results) => {
+      if (err) {
+        console.error("خطأ في التحقق من اسم المبنى:", err.stack);
+        return res
+          .status(500)
+          .json({ error: "حدث خطأ أثناء التحقق من اسم المبنى" });
+      }
+
+      // إذا وجد مبنى بنفس الاسم، قم بإرجاع رسالة بأن المبنى موجود بالفعل
+      if (results.length > 0) {
+        return res.status(409).json({ error: "المبنى موجود بالفعل" });
+      }
+
+      // إذا لم يوجد مبنى بنفس الاسم، قم بإضافة المبنى
+      const addBuildingQuery =
+        "INSERT INTO buildings (name, city_id, gender) VALUES (?, ?, ?)";
+      conn.query(addBuildingQuery, [name, city_id, gender], (err, result) => {
+        if (err) {
+          console.error("خطأ في إضافة المبنى:", err.stack);
+          return res.status(500).json({ error: "حدث خطأ أثناء إضافة المبنى" });
+        }
+
+        // إذا تمت العملية بنجاح، قم بإرجاع رسالة بنجاح إضافة المبنى
+        return res.status(200).json({ message: "تمت إضافة المبنى بنجاح" });
       });
+    });
   };
-//=========================================================================================================
-  // الحصول على university_id باستخدام اسم الجامعة
-  getUniversityIdByName(universityName, (err, universityId) => {
+
+  //=============================================================================================
+  static addRoom = (req, res) => {
+    const { room_number, type, cap } = req.body;
+    const status = req.body.status || 1; // تعيين القيمة الافتراضية لـ status إلى 1 إذا لم يتم تقديم قيمة
+    const building_id = req.query.building_id;
+
+    // التحقق من وجود جميع المعلومات المطلوبة في جسم الطلب
+    if (!room_number || !type || !building_id || !cap) {
+      return res
+        .status(400)
+        .json({ error: "يجب تقديم رقم الغرفة والنوع ومعرف المبنى والسعة." });
+    }
+
+    // التحقق من وجود المبنى المحدد
+    const checkBuildingQuery = "SELECT id FROM buildings WHERE id = ?";
+    conn.query(checkBuildingQuery, [building_id], (err, results) => {
       if (err) {
-          return res.status(500).json({ error: "حدث خطأ أثناء البحث عن معرف الجامعة." });
+        console.error("خطأ في التحقق من المبنى:", err.stack);
+        return res
+          .status(500)
+          .json({ error: "حدث خطأ أثناء التحقق من المبنى" });
       }
 
-      if (!universityId) {
-          return res.status(404).json({ error: "الجامعة غير موجودة. يرجى إدخال اسم جامعة صحيح." });
+      // إذا لم يتم العثور على المبنى، قم بإرجاع رسالة بأن المبنى غير موجود
+      if (results.length === 0) {
+        return res.status(404).json({ error: "المبنى المحدد غير موجود." });
       }
 
-      // التحقق مما إذا كانت المدينة موجودة بالفعل في نفس الجامعة
-      const checkCityQuery = 'SELECT id FROM cities WHERE name = ? AND university_id = ?';
-      conn.query(checkCityQuery, [name, universityId], (checkErr, checkResult) => {
-          if (checkErr) {
-              console.error('خطأ في الاستعلام: ' + checkErr.message);
-              return res.status(500).json({ error: "حدث خطأ أثناء التحقق من المدينة." });
+      // التحقق من عدم وجود غرفة بنفس الرقم في نفس المبنى
+      const checkRoomQuery =
+        "SELECT id FROM rooms WHERE room_number = ? AND building_id = ?";
+      conn.query(checkRoomQuery, [room_number, building_id], (err, results) => {
+        if (err) {
+          console.error("خطأ في التحقق من رقم الغرفة:", err.stack);
+          return res
+            .status(500)
+            .json({ error: "حدث خطأ أثناء التحقق من رقم الغرفة" });
+        }
+
+        // إذا وجدت غرفة بنفس الرقم في نفس المبنى، قم بإرجاع رسالة بأن الغرفة موجودة بالفعل
+        if (results.length > 0) {
+          return res
+            .status(409)
+            .json({ error: "الغرفة موجودة بالفعل في نفس المبنى." });
+        }
+
+        // إذا لم توجد غرفة بنفس الرقم في نفس المبنى، قم بإضافتها
+        const addRoomQuery =
+          "INSERT INTO rooms (room_number, type, status, building_id, cap) VALUES (?, ?, ?, ?, ?)";
+        conn.query(
+          addRoomQuery,
+          [room_number, type, status, building_id, cap],
+          (err, result) => {
+            if (err) {
+              console.error("خطأ في إضافة الغرفة:", err.stack);
+              return res
+                .status(500)
+                .json({ error: "حدث خطأ أثناء إضافة الغرفة" });
+            }
+
+            // إذا تمت العملية بنجاح، قم بإرجاع رسالة بنجاح إضافة الغرفة
+            return res.status(200).json({ message: "تمت إضافة الغرفة بنجاح" });
           }
-
-          if (checkResult.length > 0) {
-              return res.status(409).json({ error: "المدينة موجودة بالفعل في نفس الجامعة." });
-          }
-
-          // إذا لم تكن المدينة موجودة، قم بإضافتها
-          const insertCityQuery = 'INSERT INTO cities (name, university_id) VALUES (?, ?)';
-          conn.query(insertCityQuery, [name, universityId], (err, result) => {
-              if (err) {
-                  console.error('خطأ في الاستعلام: ' + err.message);
-                  return res.status(500).json({ error: "حدث خطأ أثناء إضافة المدينة." });
-              }
-
-              if (result.affectedRows === 1) {
-                  return res.status(201).json({ message: "تمت إضافة المدينة بنجاح." });
-              } else {
-                  return res.status(500).json({ error: "لم تتم إضافة المدينة. يرجى المحاولة مرة أخرى." });
-              }
-          });
+        );
       });
-  });
+    });
+  };
+  static updateRoomById = (req, res) => {
+    const roomId = req.query.id; // استخراج معرف الغرفة من معلمة الطلب
+    const { room_number, type, cap, status } = req.body;
+
+    // التحقق من وجود الغرفة المراد تحديثها
+    const checkRoomQuery = "SELECT * FROM rooms WHERE id = ?";
+    conn.query(checkRoomQuery, [roomId], (err, results) => {
+        if (err) {
+            console.error("خطأ في التحقق من الغرفة:", err.stack);
+            return res
+                .status(500)
+                .json({ error: "حدث خطأ أثناء التحقق من الغرفة" });
+        }
+
+        // التحقق مما إذا كانت الغرفة موجودة
+        if (results.length === 0) {
+            return res
+                .status(404)
+                .json({ error: "الغرفة المحددة غير موجودة." });
+        }
+
+        // تحديث معلومات الغرفة
+        let updateFields = [];
+        let updateValues = [];
+
+        if (room_number !== undefined && room_number !== results[0].room_number) {
+            updateFields.push('room_number = ?');
+            updateValues.push(room_number);
+        }
+
+        if (type !== undefined && type !== results[0].type) {
+            updateFields.push('type = ?');
+            updateValues.push(type);
+        }
+
+        if (cap !== undefined && cap !== results[0].cap) {
+            updateFields.push('cap = ?');
+            updateValues.push(cap);
+        }
+
+        if (status !== undefined && status !== results[0].status) {
+            updateFields.push('status = ?');
+            updateValues.push(status);
+        }
+
+        if (updateFields.length === 0) {
+            // لم يتم تقديم أي بيانات للتحديث
+            return res.status(400).json({ error: "لم يتم تقديم أي بيانات للتحديث." });
+        }
+
+        const updateRoomQuery = `
+            UPDATE rooms
+            SET ${updateFields.join(', ')}
+            WHERE id = ?
+        `;
+
+        conn.query(
+            updateRoomQuery,
+            [...updateValues, roomId],
+            (err, result) => {
+                if (err) {
+                    console.error("خطأ في تحديث الغرفة:", err.stack);
+                    return res
+                        .status(500)
+                        .json({ error: "حدث خطأ أثناء تحديث الغرفة" });
+                }
+
+                // إذا تم التحديث بنجاح، قم بإرجاع رسالة بنجاح
+                return res.status(200).json({ message: "تم تحديث الغرفة بنجاح" });
+            }
+        );
+    });
 };
-//=================================================================================================
-// دالة للبحث عن معرف المدينة باستخدام اسم المدينة
-static getCityIdByName = (cityName, callback) => {
-  const query = 'SELECT id FROM cities WHERE name = ?';
-  conn.query(query, [cityName], (err, result) => {
-      if (err) {
-          console.error('خطأ في الاستعلام: ' + err.message);
-          return callback(err, null);
-      }
 
-      if (result.length === 0) {
-          return callback(null, null); // لا توجد مدينة تحمل هذا الاسم
-      }
-
-      const cityId = result[0].id;
-      return callback(null, cityId);
-  });
-};
-
-// دالة للبحث عن معرف المبنى باستخدام اسم المبنى
-static  getBuildingIdByName = (buildingName, callback) => {
-  const query = 'SELECT id FROM buildings WHERE name = ?';
-  conn.query(query, [buildingName], (err, result) => {
-      if (err) {
-          console.error('خطأ في الاستعلام: ' + err.message);
-          return callback(err, null);
-      }
-
-      if (result.length === 0) {
-          return callback(null, null); // لا توجد مبنى يحمل هذا الاسم
-      }
-
-      const buildingId = result[0].id;
-      return callback(null, buildingId);
-  });
-};
-//================================================================================
-// تحديث دالة إضافة المبنى
-static addBuilding = (req, res) => {
-  const name = req.body.name;
-  const cityName = req.body.city_name; // تغيير city_id إلى city_name
-  const capacity = req.body.capacity;
-
-  if (!name || !cityName || !capacity) {
-      return res.status(400).json({ error: "يجب تقديم اسم المبنى واسم المدينة والسعة." });
-  }
-
-  // الحصول على city_id باستخدام اسم المدينة
-  getCityIdByName(cityName, (err, cityId) => {
-      if (err) {
-          return res.status(500).json({ error: "حدث خطأ أثناء البحث عن معرف المدينة." });
-      }
-
-      if (!cityId) {
-          return res.status(404).json({ error: "المدينة غير موجودة. يرجى إدخال اسم مدينة صحيح." });
-      }
-
-      // التحقق مما إذا كان المبنى موجود بنفس الاسم في نفس المدينة
-      const checkBuildingQuery = 'SELECT id FROM buildings WHERE name = ? AND city_id = ?';
-      conn.query(checkBuildingQuery, [name, cityId], (checkErr, checkResult) => {
-          if (checkErr) {
-              console.error('خطأ في الاستعلام: ' + checkErr.message);
-              return res.status(500).json({ error: "حدث خطأ أثناء التحقق من المبنى." });
-          }
-
-          if (checkResult.length > 0) {
-              return res.status(409).json({ error: "المبنى موجود بالفعل في نفس المدينة." });
-          }
-
-          // إذا لم يكن المبنى موجودًا، قم بإضافته
-          const insertBuildingQuery = 'INSERT INTO buildings (name, city_id, capacity) VALUES (?, ?, ?)';
-          conn.query(insertBuildingQuery, [name, cityId, capacity], (err, result) => {
-              if (err) {
-                  console.error('خطأ في الاستعلام: ' + err.message);
-                  return res.status(500).json({ error: "حدث خطأ أثناء إضافة المبنى." });
-              }
-
-              if (result.affectedRows === 1) {
-                  return res.status(201).json({ message: "تمت إضافة المبنى بنجاح." });
-              } else {
-                  return res.status(500).json({ error: "لم تتم إضافة المبنى. يرجى المحاولة مرة أخرى." });
-              }
-          });
-      });
-  });
-}
-//=============================================================================================
-// تحديث دالة إضافة الغرفة
-static addRoom = (req, res) => {
-  const roomNumber = req.body.room_number;
-  const type = req.body.type;
-  const status = req.body.status;
-  const buildingName = req.body.building_name; // تغيير building_id إلى building_name
-
-  if (!roomNumber || !type || !status || !buildingName) {
-      return res.status(400).json({ error: "يجب تقديم رقم الغرفة والنوع والحالة واسم المبنى." });
-  }
-
-  // الحصول على building_id باستخدام اسم المبنى
-  getBuildingIdByName(buildingName, (err, buildingId) => {
-      if (err) {
-          return res.status(500).json({ error: "حدث خطأ أثناء البحث عن معرف المبنى." });
-      }
-
-      if (!buildingId) {
-          return res.status(404).json({ error: "المبنى غير موجود. يرجى إدخال اسم مبنى صحيح." });
-      }
-
-      // التحقق مما إذا كانت الغرفة موجودة بنفس الرقم في نفس المبنى
-      const checkRoomQuery = 'SELECT id FROM rooms WHERE room_number = ? AND building_id = ?';
-      conn.query(checkRoomQuery, [roomNumber, buildingId], (checkErr, checkResult) => {
-          if (checkErr) {
-              console.error('خطأ في الاستعلام: ' + checkErr.message);
-              return res.status(500).json({ error: "حدث خطأ أثناء التحقق من الغرفة." });
-          }
-
-          if (checkResult.length > 0) {
-              return res.status(409).json({ error: "الغرفة موجودة بالفعل في نفس المبنى." });
-          }
-
-          // إذا لم تكن الغرفة موجودة، قم بإضافتها
-          const insertRoomQuery = 'INSERT INTO rooms (room_number, type, status, building_id) VALUES (?, ?, ?, ?)';
-          conn.query(insertRoomQuery, [roomNumber, type, status, buildingId], (err, result) => {
-              if (err) {
-                  console.error('خطأ في الاستعلام: ' + err.message);
-                  return res.status(500).json({ error: "حدث خطأ أثناء إضافة الغرفة." });
-              }
-
-              if (result.affectedRows === 1) {
-                  return res.status(201).json({ message: "تمت إضافة الغرفة بنجاح." });
-              } else {
-                  return res.status(500).json({ error: "لم تتم إضافة الغرفة. يرجى المحاولة مرة أخرى." });
-              }
-          });
-      });
-  });
-}
-
-
- 
   //==========================================================================
-  static addCategory(req, res) {
-    const category = req.body.category;
-    const university_id = req.body.university_id;
-  
-    if (!category || !university_id) {
-      return res.status(400).json({ error: "يجب تقديم اسم الفئة ومعرف الجامعة." });
-    }
-  
-    // التحقق من وجود الجامعة بناءً على university_id
-    const checkUniversityQuery = 'SELECT * FROM universities WHERE id = ?';
-  
-    conn.query(checkUniversityQuery, [university_id], (checkUniErr, checkUniResult) => {
-      if (checkUniErr) {
-        console.error('خطأ في الاستعلام: ' + checkUniErr.message);
-        return res.status(500).json({ error: "حدث خطأ أثناء التحقق من وجود الجامعة." });
-      }
-  
-      if (checkUniResult.length === 0) {
-        return res.status(400).json({ error: "معرف الجامعة غير صالح." });
-      }
-  
-      // التحقق من وجود الفئة بنفس الاسم ونفس الجامعة
-      const checkCategoryQuery = 'SELECT * FROM Categories WHERE Category = ? AND University_ID = ?';
-  
-      conn.query(checkCategoryQuery, [category, university_id], (checkErr, checkResult) => {
-        if (checkErr) {
-          console.error('خطأ في الاستعلام: ' + checkErr.message);
-          return res.status(500).json({ error: "حدث خطأ أثناء التحقق من وجود الفئة." });
-        }
-  
-        if (checkResult.length > 0) {
-          return res.status(400).json({ error: "الفئة موجودة بالفعل." });
-        }
-  
-        // إذا لم يكن هناك فئة بنفس الاسم ونفس الجامعة، يمكن إضافة الفئة
-        const insertCategoryQuery = 'INSERT INTO Categories (Category, University_ID) VALUES (?, ?)';
-  
-        conn.query(insertCategoryQuery, [category, university_id], (err, result) => {
-          if (err) {
-            console.error('خطأ في الاستعلام: ' + err.message);
-            return res.status(500).json({ error: "حدث خطأ أثناء إضافة الفئة." });
-          }
-  
-          return res.status(201).json({ message: "تمت إضافة الفئة بنجاح." });
-        });
-      });
-    });
-  }
-//===================================================================================================
-static addCountryInCategory(req, res) {
-    const countryName = req.body.countryName;
-    const category_id = req.body.category_id;
-    const distance = req.body.distance; // Add this line to get the distance from the request
-  
-    if (!countryName || !category_id || distance === undefined) {
-      return res.status(400).json({ error: "يجب تقديم اسم البلد ومعرف الفئة والمسافة." });
-    }
-  
-    // Check if the specified category_id exists
-    const checkCategoryQuery = 'SELECT * FROM Categories WHERE Category_ID = ?';
-  
-    conn.query(checkCategoryQuery, [category_id], (checkCategoryErr, checkCategoryResult) => {
-      if (checkCategoryErr) {
-        console.error('خطأ في الاستعلام: ' + checkCategoryErr.message);
-        return res.status(500).json({ error: "حدث خطأ أثناء التحقق من وجود الفئة." });
-      }
-  
-      if (checkCategoryResult.length === 0) {
-        return res.status(400).json({ error: "معرف الفئة غير صالح." });
-      }
-  
-      // Check if the specified countryName exists in the same category
-      const checkCountryQuery = 'SELECT * FROM Countries WHERE Country_Name = ? AND Category_ID = ?';
-  
-      conn.query(checkCountryQuery, [countryName, category_id], (checkErr, checkResult) => {
-        if (checkErr) {
-          console.error('خطأ في الاستعلام: ' + checkErr.message);
-          return res.status(500).json({ error: "حدث خطأ أثناء التحقق من وجود البلد." });
-        }
-  
-        if (checkResult.length > 0) {
-          return res.status(400).json({ error: "البلد موجود بالفعل في هذه الفئة." });
-        }
-  
-        // If there is no country with the same name in the same category, add the country with distance
-        const insertCountryQuery = 'INSERT INTO Countries (Country_Name, Category_ID, Distance) VALUES (?, ?, ?)';
-  
-        conn.query(insertCountryQuery, [countryName, category_id, distance], (err, result) => {
-          if (err) {
-            console.error('خطأ في الاستعلام: ' + err.message);
-            return res.status(500).json({ error: "حدث خطأ أثناء إضافة البلد." });
-          }
-  
-          return res.status(201).json({ message: "تمت إضافة البلد بنجاح." });
-        });
-      });
-    });
-  }
+  static getRoomsInBuilding = (req, res) => {
+    const building_id = req.query.building_id;
 
+    // التحقق من وجود معرف المبنى في استعلام الاستعلام
+    if (!building_id) {
+      return res.status(400).json({ error: "يجب تقديم معرف المبنى." });
+    }
+
+    // استعلام لاختيار الغرف في المبنى المحدد
+    const selectRoomsQuery = "SELECT * FROM rooms WHERE building_id = ?";
+
+    conn.query(selectRoomsQuery, [building_id], (err, results) => {
+      if (err) {
+        console.error("خطأ في استرجاع الغرف:", err.stack);
+        return res.status(500).json({ error: "حدث خطأ أثناء استرجاع الغرف" });
+      }
+
+      // إذا لم يتم العثور على الغرف في المبنى المحدد، قم بإرجاع رسالة بأنه لا توجد غرف
+      if (results.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "لا توجد غرف في المبنى المحدد" });
+      }
+
+      // إذا وجدت الغرف في المبنى المحدد، قم بإرجاعها
+      res.status(200).json({ rooms: results });
+    });
+  };
+
+  static getRoomById = (req, res) => {
+    const room_id = req.query.room_id;
+
+    // التحقق من وجود معرف الغرفة في استعلام الاستعلام
+    if (!room_id) {
+      return res.status(400).json({ error: "يجب تقديم معرف الغرفة." });
+    }
+
+    // استعلام لاختيار الغرفة بناءً على معرف الغرفة
+    const selectRoomQuery = "SELECT * FROM rooms WHERE id = ?";
+
+    conn.query(selectRoomQuery, [room_id], (err, results) => {
+      if (err) {
+        console.error("خطأ في استرجاع الغرفة:", err.stack);
+        return res.status(500).json({ error: "حدث خطأ أثناء استرجاع الغرفة" });
+      }
+
+      // إذا لم يتم العثور على الغرفة بالمعرف المحدد، قم بإرجاع رسالة بأنه لا يوجد غرفة بهذا المعرف
+      if (results.length === 0) {
+        return res.status(404).json({ message: "لا توجد غرفة بهذا المعرف" });
+      }
+
+      // إذا تم العثور على الغرفة بالمعرف المحدد، قم بإرجاعها
+      res.status(200).json({ room: results[0] });
+    });
+  };
 }
 module.exports = Supervising_systemController;

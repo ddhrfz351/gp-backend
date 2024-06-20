@@ -35,43 +35,62 @@ class HousingController {
       }
     });
   };
-  static assignRoom = (req, res) => {
+ static assignRoom = (req, res) => {
     const nationalId = req.query.nationalId;
 
-    // Check if the user already exists
-    const checkUserQuery = `SELECT * FROM user WHERE national_id = '${nationalId}' LIMIT 1`;
+    // Retrieve gender of the applicant from admission_requests table
+    const getApplicantGenderQuery = `SELECT gender FROM admission_requests WHERE national_id = ? LIMIT 1`;
 
-    conn.query(checkUserQuery, (err, userResult) => {
+    conn.query(getApplicantGenderQuery, [nationalId], (err, applicantGenderResult) => {
         if (err) {
-            console.error('Error checking user data:', err.stack);
-            return res.status(500).json({ error: "An error occurred while checking user data" });
+            console.error('Error retrieving applicant gender:', err.stack);
+            return res.status(500).json({ error: "An error occurred while retrieving applicant gender" });
         }
 
-        // If the user doesn't exist, return an error
-        if (userResult.length === 0) {
-            return res.status(404).json({ error: "User not found" });
+        // If applicant's gender is not found, return an error
+        if (applicantGenderResult.length === 0) {
+            return res.status(404).json({ error: "Applicant's gender not found" });
         }
 
-        // Retrieve housing type preference from admission_requests table
-        const getHousingTypeQuery = `SELECT housing_type FROM admission_requests WHERE national_id = '${nationalId}' LIMIT 1`;
+        const applicantGender = applicantGenderResult[0].gender;
 
-        conn.query(getHousingTypeQuery, (err, housingTypeResult) => {
+        // Define the room type query based on applicant's gender and building's gender
+        let roomTypeQuery = '';
+
+        if (applicantGender === 'ذكر') {
+            roomTypeQuery = `
+                SELECT rooms.id, rooms.status, rooms.cap, rooms.NumberOfResidents 
+                FROM rooms 
+                INNER JOIN buildings ON rooms.building_id = buildings.id 
+                WHERE rooms.status = 1 AND buildings.gender = 'ذكر' 
+                LIMIT 1`;
+        } else {
+            roomTypeQuery = `
+                SELECT rooms.id, rooms.status, rooms.cap, rooms.NumberOfResidents 
+                FROM rooms 
+                INNER JOIN buildings ON rooms.building_id = buildings.id 
+                WHERE rooms.status = 1 AND buildings.gender = 'انثى' 
+                LIMIT 1`;
+        }
+
+        // Check if the user already exists
+        const checkUserQuery = `SELECT * FROM user WHERE national_id = ? LIMIT 1`;
+
+        conn.query(checkUserQuery, [nationalId], (err, userResult) => {
             if (err) {
-                console.error('Error retrieving housing type preference:', err.stack);
-                return res.status(500).json({ error: "An error occurred while retrieving housing type preference" });
+                console.error('Error checking user data:', err.stack);
+                return res.status(500).json({ error: "An error occurred while checking user data" });
             }
 
-            // If housing type preference is not found, return an error
-            if (housingTypeResult.length === 0) {
-                return res.status(404).json({ error: "Housing type preference not found for the user" });
+            // If the user doesn't exist, return an error
+            if (userResult.length === 0) {
+                return res.status(404).json({ error: "User not found" });
             }
-
-            const housingType = housingTypeResult[0].housing_type;
 
             // Check if the user already has a room assigned
-            const checkUserRoomQuery = `SELECT room_id FROM user WHERE national_id = '${nationalId}' LIMIT 1`;
+            const checkUserRoomQuery = `SELECT room_id FROM user WHERE national_id = ? LIMIT 1`;
 
-            conn.query(checkUserRoomQuery, (err, userRoomResult) => {
+            conn.query(checkUserRoomQuery, [nationalId], (err, userRoomResult) => {
                 if (err) {
                     console.error('Error checking user room data:', err.stack);
                     return res.status(500).json({ error: "An error occurred while checking user room data" });
@@ -89,16 +108,7 @@ class HousingController {
                     });
                 }
 
-                // If the user doesn't have a room assigned, proceed with room assignment
-                let roomTypeQuery = '';
-
-                // Define the room type query based on housing type preference
-                if (housingType === 'مميز') {
-                    roomTypeQuery = `SELECT id, status, cap, NumberOfResidents FROM rooms WHERE type = 'مميز' AND status = 1 LIMIT 1`;
-                } else {
-                    roomTypeQuery = `SELECT id, status, cap, NumberOfResidents FROM rooms WHERE type = 'عادي' AND status = 1 LIMIT 1`;
-                }
-
+                // Fetch room data based on gender and availability
                 conn.query(roomTypeQuery, (err, roomResult) => {
                     if (err) {
                         console.error('Error fetching room data:', err.stack);
@@ -115,18 +125,18 @@ class HousingController {
                     const newOccupantsCount = roomData.NumberOfResidents + 1;
 
                     // Update room data
-                    const updateRoomQuery = `UPDATE rooms SET NumberOfResidents = ${newOccupantsCount}, status ='${(newOccupantsCount === roomData.cap) ? 0 : 1}' WHERE id = '${roomData.id}'`;
+                    const updateRoomQuery = `UPDATE rooms SET NumberOfResidents = ?, status = ? WHERE id = ?`;
 
-                    conn.query(updateRoomQuery, (err, updateRoomResult) => {
+                    conn.query(updateRoomQuery, [newOccupantsCount, (newOccupantsCount === roomData.cap) ? 0 : 1, roomData.id], (err, updateRoomResult) => {
                         if (err) {
                             console.error('Error updating room status:', err.stack);
                             return res.status(500).json({ error: "An error occurred while updating room status" });
                         }
 
                         // Update user data with room assignment
-                        const updateUserQuery = `UPDATE user SET room_id = ${roomData.id} WHERE national_id = '${nationalId}'`;
+                        const updateUserQuery = `UPDATE user SET room_id = ? WHERE national_id = ?`;
 
-                        conn.query(updateUserQuery, (err, updateUserResult) => {
+                        conn.query(updateUserQuery, [roomData.id, nationalId], (err, updateUserResult) => {
                             if (err) {
                                 console.error('Error updating user data:', err.stack);
                                 return res.status(500).json({ error: "An error occurred while updating user data" });
@@ -149,40 +159,103 @@ class HousingController {
 };
 
 static getAcceptedStudents = (req, res) => {
-  let acceptedStatus = 'Accepted';
-  let academicYear = req.query.academicYear;
+  let acceptedStatus = 'مقبول';
+  let universityName = req.query.universityName; // اسم الجامعة
   let gender = req.query.gender;
 
   let conditions = [];
-  if (academicYear) {
-      conditions.push(`college = '${academicYear}'`);
-  }
   if (gender) {
-      conditions.push(`gender = '${gender}'`);
+    conditions.push(gender = '${gender}');
   }
 
-  let conditionsQuery = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+  let conditionsQuery = conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
 
-  // Query to select accepted students
-  const selectAcceptedStudentsQuery = `SELECT * FROM admission_requests ${conditionsQuery} AND status = '${acceptedStatus}'`;
+  // استعلام لاختيار الطلاب المقبولين
+  const selectAcceptedStudentsQuery = `
+    SELECT admission_requests.*, user.* 
+    FROM admission_requests 
+    JOIN user ON admission_requests.national_id = user.national_id 
+    WHERE admission_requests.university_name = ? ${conditionsQuery} AND admission_requests.status = ? AND user.room_id IS NULL
+  `;
 
-  conn.query(selectAcceptedStudentsQuery, (err, results) => {
-      if (err) {
-          console.error('Error retrieving accepted students:', err.stack);
-          return res.status(500).json({ error: "An error occurred while retrieving accepted students" });
-      }
+  const queryParams = [universityName, acceptedStatus];
 
-      // If there are no accepted students, return empty array
-      if (results.length === 0) {
-          return res.status(404).json({ message: "No accepted students found" });
-      }
+  conn.query(selectAcceptedStudentsQuery, queryParams, (err, results) => {
+    if (err) {
+      console.error('خطأ في استرجاع الطلاب المقبولين:', err.stack);
+      return res.status(500).json({ error: "حدث خطأ أثناء استرجاع الطلاب المقبولين" });
+    }
 
-      // If there are accepted students, return them
-      res.status(200).json({ acceptedStudents: results });
+    // إذا لم يكن هناك طلاب مقبولين، قم بإرجاع مصفوفة فارغة
+    if (results.length === 0) {
+      return res.status(404).json({ message: "لم يتم العثور على طلاب مقبولين" });
+    }
+
+    // إذا كان هناك طلاب مقبولين، قم بإرجاعهم
+    res.status(200).json({ acceptedStudents: results });
   });
 };
 
+  static UsersHaveRooms = (req, res) => {
+    // الاستعلام لاسترجاع المستخدمين حسب room_id و role
+    const selectUsersQuery = 'SELECT * FROM user WHERE room_id IS NOT NULL AND role = 0';
+  
+    conn.query(selectUsersQuery, (err, results) => {
+      if (err) {
+        console.error('خطأ في استرجاع المستخدمين:', err.stack);
+        return res.status(500).json({ error: "حدث خطأ أثناء استرجاع المستخدمين" });
+      }
+  
+      // إذا لم يكن هناك مستخدمين، قم بإرجاع مصفوفة فارغة
+      if (results.length === 0) {
+        return res.status(404).json({ message: "لم يتم العثور على مستخدمين" });
+      }
+  
+      // إذا كان هناك مستخدمين، قم بإرجاعهم
+      res.status(200).json({ users: results });
+    });
+};
+  static UsersHaveRooms = (req, res) => {
+    // الاستعلام لاسترجاع المستخدمين حسب room_id و role
+    const selectUsersQuery = `SELECT * FROM user WHERE room_id IS NOT NULL AND role = 0`;
+  
+    conn.query(selectUsersQuery, (err, results) => {
+      if (err) {
+        console.error('خطأ في استرجاع المستخدمين:', err.stack);
+        return res.status(500).json({ error: "حدث خطأ أثناء استرجاع المستخدمين" });
+      }
+  
+      // إذا لم يكن هناك مستخدمين، قم بإرجاع مصفوفة فارغة
+      if (results.length === 0) {
+        return res.status(404).json({ message: "لم يتم العثور على مستخدمين" });
+      }
+  
+      // إذا كان هناك مستخدمين، قم بإرجاعهم
+      res.status(200).json({ users: results });
+    });
+};
 
+  static getCountUsersWithRoomId = (req, res) => {
+    // الاستعلام لاسترجاع عدد المستخدمين حسب room_id
+    const countUsersQuery = `SELECT COUNT(*) AS count FROM user WHERE room_id IS NOT NULL`;
+  
+    conn.query(countUsersQuery, (err, results) => {
+      if (err) {
+        console.error('خطأ في استرجاع عدد المستخدمين:', err.stack);
+        return res.status(500).json({ error: "حدث خطأ أثناء استرجاع عدد المستخدمين" });
+      }
+  
+      // إذا لم يكن هناك مستخدمين، قم بإرجاع قيمة صفر
+      if (results.length === 0) {
+        return res.status(404).json({ count: 0 });
+      }
+  
+      // إرجاع عدد المستخدمين
+      res.status(200).json({ count: results[0].count });
+    });
+  };
+  
+  
   
 }
 

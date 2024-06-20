@@ -3,7 +3,7 @@ const JWT = require("jsonwebtoken");
 const secret = "huu123";
 const validateUser = async (req, res , next) => {
   try {
-    console.log(req.session);
+    
     const  token= req.session.token 
 
     if(!token){

@@ -90,7 +90,7 @@ class employeeController {
     });
   };
   static rejectAdmissionRequest = (req, res) => {
-    const admissionRequestId = req.params.id; // تغيير req.query.id إلى req.params.id لاستخدام route parameter
+    const admissionRequestId = req.query.id; // تغيير req.query.id إلى req.params.id لاستخدام route parameter
 
     // بدء المعاملة
     conn.beginTransaction(function (err) {
@@ -130,7 +130,7 @@ class employeeController {
 
   static getAllAdmissionRequests = (req, res) => {
     const universityName = req.query.university_name; // استخدام route parameter universityName بدلاً من req.params.universityId
-console.log(universityName);
+
     const selectQuery = `SELECT * FROM admission_requests WHERE university_name = ? AND status = 'لم يتم مراجعة الطلب'`;
 
     conn.query(selectQuery, [universityName], (err, results) => {

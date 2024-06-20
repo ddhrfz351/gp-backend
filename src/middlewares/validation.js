@@ -1,14 +1,16 @@
-function validation(schema) {
-    return (req, res, next) => {
-      const { error } = schema.validate(req.body);
-      if (error) {
-        // يمكنك إرسال رسالة الخطأ إلى العميل
-        res.status(400).json({ error: error.details.map(detail => detail.message).join(', ') });
-      } else {
-        next(); // مرور الى الوسيط التالي (middleware)
-      }
+const { validationResult } = require('express-validator');
+
+function validation(validations) {
+    return async (req, res, next) => {
+        await Promise.all(validations.map(validation => validation.run(req)));
+
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        next();
     };
-  }
-  
-  module.exports = validation;
-  
+}
+
+module.exports = validation;

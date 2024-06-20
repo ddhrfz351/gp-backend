@@ -24,7 +24,7 @@ class adminController {
         }
 
         if (checkResult.length > 0) {
-          return res.status(400).json({ error: "User with this national ID already exists" });
+          return res.status(400).json({ error: "الرقم القومي موجود بالفعل" });
         }
 
         // Hash the password using bcrypt
@@ -48,7 +48,7 @@ class adminController {
           }
 
           res.status(201).json({
-            message: "User has been added successfully.",
+            message: "تمت اضافه المستخدم بنجاح.",
             userData: result,
           });
         });
@@ -69,7 +69,7 @@ class adminController {
       const { role } = req.params; // Assuming the role is passed as a parameter in the request
       
       // Validate the role value
-      if (![0, 1].includes(Number(role))) {
+      if (![0, 1,,2,3].includes(Number(role))) {
         return res.status(400).json({ error: "Invalid role value" });
       }
 
@@ -91,26 +91,37 @@ class adminController {
       res.status(500).json({ error: "An error occurred while fetching users" });
     }
   }  
-  static async getUsers(req, res) {
-    try {
-      // Query to fetch users with role 0
-      const getUsersQuery = 'SELECT * FROM user WHERE role = 0';
-      conn.query(getUsersQuery, (err, result) => {
+  static UsersHaveRooms = (req, res) => {
+    // استخدام university_id من الريكوست
+    const university_id = req.query.university_id;
+
+    // استعلام لاسترجاع المستخدمين حسب room_id و role وحالة القبول ورقم الجامعة
+    const selectUsersQuery = `
+        SELECT u.*
+        FROM user u
+        LEFT JOIN admission_requests ar ON u.national_id = ar.national_id
+        WHERE u.room_id IS NULL 
+        AND u.role = 0 
+        AND ar.status = 'مقبول'
+        AND ar.university_id = ?
+    `;
+
+    conn.query(selectUsersQuery, [university_id], (err, results) => {
         if (err) {
-          console.error('Error fetching users: ' + err.stack);
-          return res.status(500).json({ error: "An error occurred while fetching users" });
+            console.error('خطأ في استرجاع المستخدمين:', err.stack);
+            return res.status(500).json({ error: "حدث خطأ أثناء استرجاع المستخدمين" });
         }
-  
-        res.status(200).json({
-          message: "Users fetched successfully.",
-          users: result,
-        });
-      });
-    } catch (error) {
-      console.error('Error fetching users: ' + error.stack);
-      res.status(500).json({ error: "An error occurred while fetching users" });
-    }
-  }
+
+        // إذا لم يكن هناك مستخدمين، قم بإرجاع مصفوفة فارغة
+        if (results.length === 0) {
+            return res.status(404).json({ message: "لم يتم العثور على مستخدمين" });
+        }
+
+        // إذا كان هناك مستخدمين، قم بإرجاعهم
+        res.status(200).json({ users: results });
+    });
+};
+
   static async blockUser(req, res) {
     try {
       const { national_id } = req.params; // Assuming the user ID is passed as a parameter
@@ -525,7 +536,7 @@ static deleteAppointmentById = (req, res) => {
 */
 static addApplicationGuidelines = (req, res) => {
   const guidelines = req.body.guidelines;
-  const universityName = req.query.university_name; // Updated to use university_name
+  const universityName = req.query.universityName; // Updated to use university_name
 
   if (!guidelines || !universityName) {
       return res.status(400).json({ error: "يجب تقديم الإرشادات ومعرف الجامعة." });
